@@ -86,7 +86,7 @@ def main():
 
 	# --- Run the application with HTTPS ---
 	# Passing the `ssl_context` to `run_app` is what enables HTTPS.
-	host = 'localhost'
+	host = '0.0.0.0'
 	port = 8001
 	print(f"Starting secure server on https://{host}:{port}")
 	#web.run_app(app, host=host, port=port, ssl_context=ssl_context)
