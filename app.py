@@ -43,6 +43,15 @@ async def handle_params(request):
 			"mask": 	f"{mask:08x}",
 		}
 	return web.json_response(json_data)	
+
+
+# --- Main Application Setup ---
+app = web.Application()
+app.add_routes([
+	web.get('/', handle),
+	web.post('/file', handle_file),
+	web.post('/params', handle_params),
+])
  
 def main():
 	"""Sets up the SSL context and runs the aiohttp application."""
@@ -76,13 +85,7 @@ def main():
 		print("Please ensure your certificate and key files are valid and match.")
 		return
 
-	# --- Main Application Setup ---
-	app = web.Application()
-	app.add_routes([
-		web.get('/', handle),
-		web.post('/file', handle_file),
-		web.post('/params', handle_params),
-	])
+	
 
 	# --- Run the application with HTTPS ---
 	# Passing the `ssl_context` to `run_app` is what enables HTTPS.
