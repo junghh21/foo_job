@@ -57,7 +57,7 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 		loop = asyncio.get_running_loop()
 
 		# This loop simulates a process that generates multiple results over time.
-		for i in range(10):  # Stream 5 results for demonstration
+		for i in range(30):  # Stream 5 results for demonstration
 			# The y1.foo2 function is a blocking C extension. To avoid freezing
 			# the server, we run it in a separate thread using an executor.
 			#print(f"Iteration {i}: {bin_data.hex()[:8]} {no=:08x} {mask=:08x}")
