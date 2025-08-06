@@ -3,7 +3,11 @@ import ssl
 import asyncio
 from aiohttp import web
 import os
+import sys
+import subprocess
 import y1
+import threading
+import time
 
 async def handle(request: web.Request) -> web.Response:
 	"""A simple handler that greets the user."""
@@ -136,8 +140,37 @@ def main():
 	web.run_app(app, host=host, port=port, ssl_context=ssl_context)
 	#web.run_app(app, host=host, port=port)
 
+def check_and_pull(repo_path):
+	try:
+		# Fetch latest changes from origin
+		subprocess.run(["git", "-C", repo_path, "fetch"], check=True)
+		# Get local and remote HEAD commit hashes
+		local = subprocess.check_output(["git", "-C", repo_path, "rev-parse", "HEAD"]).strip()
+		remote = subprocess.check_output(["git", "-C", repo_path, "rev-parse", "@{u}"]).strip()
+		if local != remote:
+			print("📥 Updates available. Pulling...")
+			subprocess.run(["git", "-C", repo_path, "pull"], check=True)
+			return True
+		else:
+			print("✅ Already up to date.")
+	except subprocess.CalledProcessError as e:
+		print(f"❌ Git command failed: {e}")
+	except Exception as e:
+		print(f"⚠️ Unexpected error: {e}")
+
+def restart():
+    print("🔁 Restarting script...")
+    os.execv(sys.executable, ['python'] + sys.argv)
+    
+def periodic_git_check():
+  while True:
+    time.sleep(1800)
+    if check_and_pull("./"):
+      restart()
 
 if __name__ == '__main__':
 	script_dir = os.path.dirname(os.path.abspath(__file__))
 	os.chdir(script_dir)
+	thread = threading.Thread(target=periodic_git_check, daemon=True)
+	thread.start()
 	main()
