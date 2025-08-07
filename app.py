@@ -32,6 +32,9 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 	Handles a POST request, runs a potentially long-running computation,
 	and streams the results back to the client as a JSON array.
 	"""
+	foo1 = y1.foo2
+	if request.path == "/params2":
+		foo1 = y1.b1_foo2
 	try:
 		# 1. Prepare the streaming response object.
 		# This allows us to send headers first, then data chunks later.
@@ -57,12 +60,12 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 		loop = asyncio.get_running_loop()
 
 		# This loop simulates a process that generates multiple results over time.
-		for i in range(30):  # Stream 5 results for demonstration
+		for i in range(50):  # Stream 5 results for demonstration
 			# The y1.foo2 function is a blocking C extension. To avoid freezing
 			# the server, we run it in a separate thread using an executor.
 			#print(f"Iteration {i}: {bin_data.hex()[:8]} {no=:08x} {mask=:08x}")
 			new_bin, new_no, new_mask, ret = await loop.run_in_executor(
-				None, y1.foo2, bin_data, no, mask
+				None, foo1, bin_data, no, mask
 			)
 			#if not first_item:
 			#	await response.write(b',')
@@ -96,6 +99,7 @@ app.add_routes([
 	web.get('/', handle),
 	web.post('/file', handle_file),
 	web.post('/params', handle_params),
+	web.post('/params2', handle_params),
 ])
 
 def main():
