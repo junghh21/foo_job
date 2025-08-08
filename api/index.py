@@ -27,13 +27,15 @@ def add_instance ():
 	shm.buf[:4] = struct.pack('i', cur)
 	return cur
 	'''
-	
-	with open('ex_cnt.txt', 'r', encoding='utf-8') as f:
-		content = f.read()
-		#print(content)
-		ex_cnt = int(content)
-		ex_cnt += 1
-	with open('ex_cnt.txt', 'w', encoding='utf-8') as f:
+	try:
+		with open('/var/tmp/ex_cnt.txt', 'r', encoding='utf-8') as f:
+			content = f.read()
+			#print(content)
+			ex_cnt = int(content)
+			ex_cnt += 1
+	except:
+		ex_cnt = 1
+	with open('/var/tmp/ex_cnt.txt', 'w', encoding='utf-8') as f:
 		f.write(f"{ex_cnt}")
 	return ex_cnt
 	
@@ -46,7 +48,7 @@ def get_cur_instance ():
 	cur = struct.unpack('i', shm.buf[:4])[0]
 	return cur
 	'''
-	with open('ex_cnt.txt', 'r', encoding='utf-8') as f:
+	with open('/var/tmp/ex_cnt.txt', 'r', encoding='utf-8') as f:
 		content = f.read()
 		#print(content)
 		ex_cnt = int(content)
