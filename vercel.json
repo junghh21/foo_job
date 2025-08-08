@@ -1,4 +1,4 @@
 {
-  "redirects": [{ "src": "/(.*)", "dest": "/api/index.py" }]
+  "rewrites": [{ "src": "/", "dest": "/api" }]
 }
 
