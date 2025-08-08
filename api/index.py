@@ -86,6 +86,12 @@ class handler(BaseHTTPRequestHandler):
 				# End of chunks
 				self.wfile.write(b"0\r\n\r\n")
 				self.wfile.flush()
+			except BrokenPipeError:
+				print("Client disconnected before response was complete.")
+				# End of chunks
+				self.wfile.write(b"0\r\n\r\n")
+				self.wfile.flush()
+				return
 			except json.JSONDecodeError:
 				self.send_response(400)
 				self.send_header("Content-type", "application/json")
