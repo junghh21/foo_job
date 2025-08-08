@@ -1,6 +1,4 @@
 {
-  "redirects": [{ "source": "/", "destination": "/api" },
-                { "source": "/params", "destination": "/api" },
-                { "source": "/params2", "destination": "/api" }]
+  "redirects": [{ "src": "/(.*)", "dest": "/api/index.py" }]
 }
 
