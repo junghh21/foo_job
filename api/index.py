@@ -32,7 +32,7 @@ def add_instance ():
 	except:
 		ex_cnt = 1
 	os.environ['EX_CNT'] = f"{ex_cnt}"
-	return 0
+	return ex_cnt
 	
 def get_cur_instance ():
 	'''
@@ -81,7 +81,7 @@ def params():
 			for i in range(50):
 				if get_cur_instance() != my_cnt:
 					json_data = {"result": "False"}
-					print(f'X == {my_cnt}')
+					print(f'X == {my_cnt}, {get_cur_instance()}')
 					return json.dumps(json_data) + "\n"  # NDJSON format
 				new_bin, new_no, new_mask, ret = foo1(bin_data, no, mask)
 				no = new_no+1
