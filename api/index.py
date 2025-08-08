@@ -19,7 +19,7 @@ class handler(BaseHTTPRequestHandler):
 				self.send_header("Content-type", "text/plain")
 				self.end_headers()
 				self.wfile.write(
-						"Python API Example - Welcome to the homepage!".encode("utf-8")
+						"Python API Example s - Welcome to the homepage!".encode("utf-8")
 				)
 		else:
 				self.send_response(404)
