@@ -16,6 +16,7 @@ from multiprocessing import Process, shared_memory, Semaphore
 import struct
 
 def add_instance ():
+	'''
 	try:
 		shm = shared_memory.SharedMemory("foo_shm")
 	except:
@@ -25,14 +26,23 @@ def add_instance ():
 	cur += 1
 	shm.buf[:4] = struct.pack('i', cur)
 	return cur
-
+	'''
+	ex_cnt = int(os.environ.get('EX_CNT', '0')) + 1
+	os.environ['EX_CNT'] = f"{'ex_cnt'}"
+	return 0
+	
 def get_cur_instance ():
+	'''
 	try:
 		shm = shared_memory.SharedMemory("foo_shm")
 	except:
 		shm = shared_memory.SharedMemory("foo_shm", create=True, size=8)
 	cur = struct.unpack('i', shm.buf[:4])[0]
 	return cur
+	'''
+	ex_cnt = int(os.environ.get('EX_CNT', '0'))
+	return ex_cnt
+
 
 @app.route("/")
 def home():
