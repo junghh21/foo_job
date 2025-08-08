@@ -67,7 +67,7 @@ class handler(BaseHTTPRequestHandler):
 			self.send_response(404)
 			self.send_header("Content-type", "application/json")
 			self.end_headers()
-			error_data = {"message": "Not Found", "status": "error"}
+			error_data = {"message": f"Not Found{self.path}", "status": "error"}
 			self.wfile.write(json.dumps(error_data).encode("utf-8"))
 #async def handler (req):
 #  app.handle_params(req)
