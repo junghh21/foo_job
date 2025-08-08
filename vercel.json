@@ -1,4 +1,6 @@
 {
-  "rewrites": [{ "src": "/", "dest": "/api" }]
+  "routes": [
+    { "src": "/(.*)", "dest": "/api/index.py" }
+  ]
 }
 

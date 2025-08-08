@@ -8,20 +8,21 @@ import app
 import y1 
 
 from http.server import BaseHTTPRequestHandler
+import re
 import json
 # Create a custom HTTP request handler
 class handler(BaseHTTPRequestHandler):
 	# Define how to handle GET requests
 	def do_GET(self):
 		print("Here => ", self.path)
-		if self.path == "/api":
+		if self.path == "/":
 				self.send_response(200)
 				self.send_header("Content-type", "text/plain")
 				self.end_headers()
 				self.wfile.write(
 						"Python API Example s - Welcome to the homepage!".encode("utf-8")
 				)
-		elif self.path == "/api/params":
+		elif self.path == "/params":
 				self.send_response(200)
 				self.send_header("Content-type", "text/plain")
 				self.end_headers()
@@ -38,32 +39,53 @@ class handler(BaseHTTPRequestHandler):
 				
 	def do_POST(self):
 		print("POST =>", self.path)
-		if self.path in ["/api/params", "/api/params2"]:
-			foo1 = y1.foo2
-			if self.path == "/api/params2":
-				foo1 = y1.b1_foo2
-			content_length = int(self.headers.get("Content-Length", 0))
-			post_data = self.rfile.read(content_length)
+		if self.path in ["/params", "/params2"]:				
 			try:
-				data = json.loads(post_data)
+				foo1 = y1.foo2
+				if self.path == "/params2":
+					foo1 = y1.b1_foo2	
+					
+				# Set response headers
+				self.send_response(200)
+				self.send_header('Content-Type', 'application/json')
+				self.send_header('Transfer-Encoding', 'chunked')  # Enable chunked transfer
+				self.end_headers()				
+				
+				content_length = int(self.headers.get("Content-Length", 0))
+				post_data = self.rfile.read(content_length).decode('utf-8')
+				print(post_data)
+				if 0:				
+					pattern = r'name="([^"]+)"\s*\r?\n\r?\n([^\r\n]+)'
+					matches = re.findall(pattern, post_data)	
+					form_dict = {name: value for name, value in matches}	
+				else:
+					form_dict = json.loads(post_data)
+					print(form_dict)
+				data = form_dict
 				bin_data = bytes.fromhex(data['bin'])
 				no = int(data['no'], 16)
 				mask = int(data['mask'], 16)
-				
-				json_data = {"result": "False"}
-				for i in range(30):
+				print(bin_data, no, mask)
+				for i in range(50):
 					new_bin, new_no, new_mask, ret = foo1(bin_data, no, mask)
 					no = new_no+1
 					mask = mask
-					if ret == 0:
+					print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
+					if ret == 0:						
 						json_data = {"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"}
-						print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
-						break									
-
-				self.send_response(200)
-				self.send_header("Content-type", "application/json")
-				self.end_headers()
-				self.wfile.write(json.dumps(json_data).encode("utf-8"))
+					else:
+						json_data = {"result": "False"}
+					json_str = json.dumps(json_data) + "\n"  # NDJSON format
+					
+					encoded = json_str.encode('utf-8')
+					# Write chunk size in hex, then the data, then CRLF
+					self.wfile.write(f"{len(encoded):X}\r\n".encode('utf-8'))
+					self.wfile.write(encoded)
+					self.wfile.write(b"\r\n")
+					self.wfile.flush()			
+				# End of chunks
+				self.wfile.write(b"0\r\n\r\n")
+				self.wfile.flush()
 			except json.JSONDecodeError:
 				self.send_response(400)
 				self.send_header("Content-type", "application/json")
