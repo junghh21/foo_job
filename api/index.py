@@ -21,6 +21,13 @@ class handler(BaseHTTPRequestHandler):
 				self.wfile.write(
 						"Python API Example s - Welcome to the homepage!".encode("utf-8")
 				)
+		elif self.path == "/api/params":
+				self.send_response(200)
+				self.send_header("Content-type", "text/plain")
+				self.end_headers()
+				self.wfile.write(
+						"PARAMs".encode("utf-8")
+				)
 		else:
 				self.send_response(404)
 				self.send_header("Content-type", "application/json")
