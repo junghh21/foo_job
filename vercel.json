@@ -1,6 +1,6 @@
 {
   "redirects": [{ "source": "/", "destination": "/api" },
                 { "source": "/params", "destination": "/api/params" },
-                { "source": "/params2", "destination": "/api/param2" },]
+                { "source": "/params2", "destination": "/api/param2" }]
 }
 
