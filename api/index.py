@@ -27,8 +27,11 @@ def add_instance ():
 	shm.buf[:4] = struct.pack('i', cur)
 	return cur
 	'''
-	ex_cnt = int(os.environ.get('EX_CNT', '0')) + 1
-	os.environ['EX_CNT'] = f"{'ex_cnt'}"
+	try:
+		ex_cnt = int(os.environ.get('EX_CNT', '0')) + 1
+	except:
+		ex_cnt = 1
+	os.environ['EX_CNT'] = f"{ex_cnt}"
 	return 0
 	
 def get_cur_instance ():
@@ -40,9 +43,11 @@ def get_cur_instance ():
 	cur = struct.unpack('i', shm.buf[:4])[0]
 	return cur
 	'''
-	ex_cnt = int(os.environ.get('EX_CNT', '0'))
+	try:
+		ex_cnt = int(os.environ.get('EX_CNT', '0'))
+	except:
+		ex_cnt = 0
 	return ex_cnt
-
 
 @app.route("/")
 def home():
