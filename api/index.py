@@ -27,11 +27,14 @@ def add_instance ():
 	shm.buf[:4] = struct.pack('i', cur)
 	return cur
 	'''
-	try:
-		ex_cnt = int(os.environ.get('EX_CNT', '0')) + 1
-	except:
-		ex_cnt = 1
-	os.environ['EX_CNT'] = f"{ex_cnt}"
+	
+	with open('ex_cnt.txt', 'r', encoding='utf-8') as f:
+		content = f.read()
+		#print(content)
+		ex_cnt = int(content)
+		ex_cnt += 1
+	with open('ex_cnt.txt', 'w', encoding='utf-8') as f:
+		f.write(f"{ex_cnt}")
 	return ex_cnt
 	
 def get_cur_instance ():
@@ -43,10 +46,10 @@ def get_cur_instance ():
 	cur = struct.unpack('i', shm.buf[:4])[0]
 	return cur
 	'''
-	try:
-		ex_cnt = int(os.environ.get('EX_CNT', '0'))
-	except:
-		ex_cnt = 0
+	with open('ex_cnt.txt', 'r', encoding='utf-8') as f:
+		content = f.read()
+		#print(content)
+		ex_cnt = int(content)
 	return ex_cnt
 
 @app.route("/")
