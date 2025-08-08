@@ -53,19 +53,19 @@ class handler(BaseHTTPRequestHandler):
 				
 				content_length = int(self.headers.get("Content-Length", 0))
 				post_data = self.rfile.read(content_length).decode('utf-8')
-				print(post_data)
+				#print(post_data)
 				if 0:				
 					pattern = r'name="([^"]+)"\s*\r?\n\r?\n([^\r\n]+)'
 					matches = re.findall(pattern, post_data)	
 					form_dict = {name: value for name, value in matches}	
 				else:
 					form_dict = json.loads(post_data)
-					print(form_dict)
+					#print(form_dict)
 				data = form_dict
 				bin_data = bytes.fromhex(data['bin'])
 				no = int(data['no'], 16)
 				mask = int(data['mask'], 16)
-				print(bin_data, no, mask)
+				#print(bin_data, no, mask)
 				for i in range(50):
 					new_bin, new_no, new_mask, ret = foo1(bin_data, no, mask)
 					no = new_no+1
