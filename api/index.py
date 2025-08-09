@@ -23,16 +23,16 @@ VERCEL_URL = os.environ.get("VERCEL_URL", 'localhost')
 EX_CNT = f"{VERCEL_URL}_EX_CNT"
 
 def get_cur_instance (path):
-	EX_CNT1 = EX_CNT+path
+	EX_CNT1 = EX_CNT+path.replace('/', '')
 	try:
 		ex_cnt = int(r.get(EX_CNT1).decode())
 	except:
 		ex_cnt = 0
 	return ex_cnt
 
-def add_instance ():
+def add_instance (path):
 	print(VERCEL_URL)
-	EX_CNT1 = EX_CNT+path
+	EX_CNT1 = EX_CNT+path.replace('/', '')
 	try:
 		ex_cnt = int(r.get(EX_CNT1).decode())
 	except:
