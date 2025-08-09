@@ -15,43 +15,28 @@ app = Flask(__name__)
 from multiprocessing import Process, shared_memory, Semaphore
 import struct
 
-def add_instance ():
-	'''
-	try:
-		shm = shared_memory.SharedMemory("foo_shm")
-	except:
-		shm = shared_memory.SharedMemory("foo_shm", create=True, size=8)
-	
-	cur = struct.unpack('i', shm.buf[:4])[0] 
-	cur += 1
-	shm.buf[:4] = struct.pack('i', cur)
-	return cur
-	'''
-	try:
-		with open('/var/tmp/ex_cnt.txt', 'r', encoding='utf-8') as f:
-			content = f.read()
-			#print(content)
-			ex_cnt = int(content)
-			ex_cnt += 1
-	except:
-		ex_cnt = 1
-	with open('/var/tmp/ex_cnt.txt', 'w', encoding='utf-8') as f:
-		f.write(f"{ex_cnt}")
-	return ex_cnt
-	
+#redis-gray-village
+#REDIS_URL="redis://default:MfoWsuF6bOW0zGNFSdAxd2awIulEFLKv@redis-19366.c62.us-east-1-4.ec2.redns.redis-cloud.com:19366"
+import redis
+r = redis.from_url(os.environ['REDIS_URL'])
+VERCEL_URL = os.environ.get("VERCEL_URL", 'localhost')
+EX_CNT = f"{VERCEL_URL}_EX_CNT"
+
 def get_cur_instance ():
-	'''
 	try:
-		shm = shared_memory.SharedMemory("foo_shm")
+		ex_cnt = int(r.get(EX_CNT).decode())
 	except:
-		shm = shared_memory.SharedMemory("foo_shm", create=True, size=8)
-	cur = struct.unpack('i', shm.buf[:4])[0]
-	return cur
-	'''
-	with open('/var/tmp/ex_cnt.txt', 'r', encoding='utf-8') as f:
-		content = f.read()
-		#print(content)
-		ex_cnt = int(content)
+		ex_cnt = 0
+	return ex_cnt
+
+def add_instance ():
+	print(VERCEL_URL)
+	try:
+		ex_cnt = int(r.get(EX_CNT).decode())
+	except:
+		ex_cnt = 0
+	ex_cnt += 1
+	r.set(EX_CNT, ex_cnt)
 	return ex_cnt
 
 @app.route("/")
