@@ -22,21 +22,23 @@ r = redis.from_url(os.environ['REDIS_URL'])
 VERCEL_URL = os.environ.get("VERCEL_URL", 'localhost')
 EX_CNT = f"{VERCEL_URL}_EX_CNT"
 
-def get_cur_instance ():
+def get_cur_instance (path):
+	EX_CNT1 = EX_CNT+path
 	try:
-		ex_cnt = int(r.get(EX_CNT).decode())
+		ex_cnt = int(r.get(EX_CNT1).decode())
 	except:
 		ex_cnt = 0
 	return ex_cnt
 
 def add_instance ():
 	print(VERCEL_URL)
+	EX_CNT1 = EX_CNT+path
 	try:
-		ex_cnt = int(r.get(EX_CNT).decode())
+		ex_cnt = int(r.get(EX_CNT1).decode())
 	except:
 		ex_cnt = 0
 	ex_cnt += 1
-	r.set(EX_CNT, ex_cnt)
+	r.set(EX_CNT1, ex_cnt)
 	return ex_cnt
 
 @app.route("/")
@@ -57,7 +59,7 @@ def home():
 def params():
 	@stream_with_context
 	def generate():
-		my_cnt = add_instance()
+		my_cnt = add_instance(request.path)
 		try:
 			data = request.get_json()
 			#print(data)
@@ -69,7 +71,7 @@ def params():
 			mask = int(data['mask'], 16)
 			#print(bin_data, no, mask)
 			for i in range(50):
-				if get_cur_instance() != my_cnt:
+				if get_cur_instance(request.path) != my_cnt:
 					json_data = {"result": "False"}
 					print(f'X == {my_cnt}, {get_cur_instance()}')
 					return json.dumps(json_data) + "\n"  # NDJSON format
