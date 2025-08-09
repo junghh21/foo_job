@@ -71,9 +71,10 @@ def params():
 			mask = int(data['mask'], 16)
 			#print(bin_data, no, mask)
 			for i in range(50):
-				if get_cur_instance(request.path) != my_cnt:
+				new_cur = get_cur_instance(request.path)
+				if new_cur != my_cnt:
 					json_data = {"result": "False"}
-					print(f'X == {my_cnt}, {get_cur_instance()}')
+					print(f'X == {my_cnt}, {new_cur}')
 					return json.dumps(json_data) + "\n"  # NDJSON format
 				new_bin, new_no, new_mask, ret = foo1(bin_data, no, mask)
 				no = new_no+1
