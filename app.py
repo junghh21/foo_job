@@ -15,6 +15,18 @@ async def handle(request: web.Request) -> web.Response:
 	text = f"Hello, {name}, from your secure aiohttp server!"
 	return web.Response(text=text)
 
+async def handle_info(request: web.Request) -> web.Response:
+	json_data = {	'cpu_count': os.cpu_count(),
+								'platform': sys.platform,
+								'python_version': sys.version,
+								'working_directory': os.getcwd(),
+								'pid': os.getpid(),
+								'cpu_usage': os.popen(f'ps -p {os.getpid()} -o %cpu').read().strip(),
+								'memory_usage': os.popen(f'ps -p {os.getpid()} -o %mem').read().strip(),
+								'uptime': time.time() - os.path.getmtime('/proc/1/stat'),
+							}
+	return web.json_response(json_data)
+
 async def handle_file(request):
 	data = await request.post()
 	uploaded_file = data['file']  # 'file' is the name attribute in your HTML form
@@ -97,7 +109,8 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 app = web.Application()
 app.add_routes([
 	web.get('/', handle),
-	web.post('/file', handle_file),
+	web.get('/info', handle_info),
+ 	web.post('/file', handle_file),
 	web.post('/params', handle_params),
 	web.post('/params2', handle_params),
 ])
@@ -163,18 +176,23 @@ def check_and_pull(repo_path):
 		print(f"⚠️ Unexpected error: {e}")
 
 def restart():
-    print("🔁 Restarting script...")
-    os.execv(sys.executable, ['python'] + sys.argv)
-    
+	print("🔁 Restarting script... {os.getpid()}")
+	#os.execv(sys.executable, ['python'] + sys.argv)
+	subprocess.Popen([sys.executable] + sys.argv)
+	sys.exit()  # Exit the current process
+	
 def periodic_git_check():
-  while True:
-    time.sleep(1800)
-    if check_and_pull("./"):
-      restart()
+	while True:
+		time.sleep(random.randint(60*4, 60*60))  # Check every 4 to 6 minutes
+		print("🔄 Checking for updates...")
+		check_and_pull("./")
+		restart()
 
 if __name__ == '__main__':
 	script_dir = os.path.dirname(os.path.abspath(__file__))
 	os.chdir(script_dir)
+	print(f"Working directory set to: {os.getcwd()}")
+	time.sleep(3)  # Give the server a moment to start
 	thread = threading.Thread(target=periodic_git_check, daemon=True)
 	thread.start()
 	main()
