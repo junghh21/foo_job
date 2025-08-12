@@ -1,13 +1,14 @@
 import json
 import ssl
 import asyncio
-from aiohttp import web
+from aiohttp import web, ClientSession, WSMsgType
 import os
 import sys
 import subprocess
 import y1
 import threading
 import time
+import random
 
 async def handle(request: web.Request) -> web.Response:
 	"""A simple handler that greets the user."""
@@ -38,7 +39,7 @@ async def handle_file(request):
 		f.write(content)
 
 	return web.Response(text=f"Uploaded {filename} successfully!")
-	
+
 async def handle_params(request: web.Request) -> web.StreamResponse:
 	"""
 	Handles a POST request, runs a potentially long-running computation,
@@ -64,7 +65,7 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 		no = int(data['no'], 16)
 		mask = int(data['mask'], 16)
 		#print(f"Initial params: {bin_data.hex()[:8]} {no=:08x} {mask=:08x}")
-	
+
 
 		# 3. Start streaming the response. We'll send a JSON array.
 		#await response.write(b'[')
@@ -95,7 +96,7 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 			first_item = False
 			await asyncio.sleep(.1)  # Pause to make streaming visible
 
-			
+
 		# 4. Close the JSON array and signal the end of the stream.
 		#await response.write(b']')
 		await response.write_eof()
@@ -115,9 +116,123 @@ app.add_routes([
 	web.post('/params2', handle_params),
 ])
 
+submit_q = asyncio.Queue()
+run_q = asyncio.Queue()
+async def foo_runner():
+	i = -1
+	while True:
+		try:
+			if run_q.empty():
+				if i == -1:
+					await asyncio.sleep(.1)
+					continue
+				loop = asyncio.get_running_loop()
+				new_bin, new_no, new_mask, ret = await loop.run_in_executor(
+										None, foo1, bin_data, no, mask
+									)
+				if ret != -1:
+					print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
+					await submit_q.put({"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"})
+				else:
+					print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
+				no = new_no+1
+				mask = mask
+				i+=1
+			else:
+				item = await run_q.get()
+				if 'stop' in item:
+					i = -1
+					continue
+				# run
+				bin_data = item['bin']
+				no = item['no']
+				mask = item['mask']
+				if item['path'] == '/params2':
+					foo1 = y1.b1_foo2
+				else:
+					foo1 = y1.foo2
+				i = 0
+		except Exception as e:
+			print(f"Error in foo_runner: {e}")
+
+
+async def websocket_client(ws_url):
+	async with ClientSession() as session:
+		while True:
+			await asyncio.sleep(10)
+			#print("Reconnecting to WebSocket...")
+			try:
+				# Attempt to connect to the WebSocket server
+				ssl_context = ssl.create_default_context()
+				ssl_context.check_hostname = False
+				ssl_context.verify_mode = ssl.CERT_NONE
+				async with session.ws_connect(ws_url, ssl=ssl_context) as ws:
+					print("WebSocket connection established successfully.")
+					timeout_cnt = 0
+					while True:
+						if submit_q.qsize() > 0:
+							item = await submit_q.get()
+							await ws.send_json(item)
+						try:
+							msg = await asyncio.wait_for(ws.receive(), 0.1)
+							timeout_cnt = 0
+						except asyncio.TimeoutError:
+							timeout_cnt += 1
+							if timeout_cnt > 300:
+								print("WebSocket msg timed out. Reconnecting...")
+								await ws.close()
+								break
+							continue
+						if msg.type == WSMsgType.TEXT:
+							try:
+								data = json.loads(msg.data)
+								print("Received JSON:", data)
+								if "req" in data:
+									if data['req'] == 'run':
+										bin_data = bytes.fromhex(data['bin'])
+										no = int(data['no'], 16)
+										mask = int(data['mask'], 16)
+										await run_q.put({"bin": bin_data, "no": no, "mask": mask, "path": data['path']})
+									elif data['req'] == 'stop':
+										await run_q.put({"stop": True})
+							except json.JSONDecodeError:
+								print("Received non-JSON message:", msg.data)
+							except Exception as e:
+								print(f"Error processing message: {e}")
+						elif msg.type == WSMsgType.ERROR:
+							print("WebSocket error:", msg)
+						elif msg.type == WSMsgType.CLOSE:
+							print("WebSocket connection closed")
+							break
+
+			except (ConnectionRefusedError, asyncio.TimeoutError) as e:
+				print(f"WebSocket connection failed: {e}")
+			except Exception as e:
+				print(f"WebSocket connection error: {e}")
+
+
+async def on_startup(app):
+	with open("brg_url.txt") as f:
+		ws_url = f.readline()
+		#ws_url = 'wss://localhost:3001/ws_s'  # Replace with your WebSocket URL
+	app['tasks'] = [
+			asyncio.create_task(websocket_client(ws_url)),
+			asyncio.create_task(foo_runner()),
+	]
+
+async def on_cleanup(app):
+	for task in app['tasks']:
+		task.cancel()
+		try:
+			await task
+		except asyncio.CancelledError:
+			print("Background task cancelled.")
+app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
+
 def main():
 	"""Sets up the SSL context and runs the aiohttp application."""
-	
+
 	cert_file = 'cert.pem'
 	key_file = 'key.pem'
 
@@ -147,8 +262,6 @@ def main():
 		print("Please ensure your certificate and key files are valid and match.")
 		return
 
-	
-
 	# --- Run the application with HTTPS ---
 	# Passing the `ssl_context` to `run_app` is what enables HTTPS.
 	host = '0.0.0.0'
@@ -157,42 +270,13 @@ def main():
 	web.run_app(app, host=host, port=port, ssl_context=ssl_context)
 	#web.run_app(app, host=host, port=port)
 
-def check_and_pull(repo_path):
-	try:
-		# Fetch latest changes from origin
-		subprocess.run(["git", "-C", repo_path, "fetch"], check=True)
-		# Get local and remote HEAD commit hashes
-		local = subprocess.check_output(["git", "-C", repo_path, "rev-parse", "HEAD"]).strip()
-		remote = subprocess.check_output(["git", "-C", repo_path, "rev-parse", "@{u}"]).strip()
-		if local != remote:
-			print("📥 Updates available. Pulling...")
-			subprocess.run(["git", "-C", repo_path, "pull"], check=True)
-			return True
-		else:
-			print("✅ Already up to date.")
-	except subprocess.CalledProcessError as e:
-		print(f"❌ Git command failed: {e}")
-	except Exception as e:
-		print(f"⚠️ Unexpected error: {e}")
-
-def restart():
-	print("🔁 Restarting script... {os.getpid()}")
-	#os.execv(sys.executable, ['python'] + sys.argv)
-	subprocess.Popen([sys.executable] + sys.argv)
-	sys.exit()  # Exit the current process
-	
-def periodic_git_check():
-	while True:
-		time.sleep(random.randint(60*4, 60*60))  # Check every 4 to 6 minutes
-		print("🔄 Checking for updates...")
-		check_and_pull("./")
-		restart()
-
 if __name__ == '__main__':
 	script_dir = os.path.dirname(os.path.abspath(__file__))
 	os.chdir(script_dir)
 	print(f"Working directory set to: {os.getcwd()}")
-	time.sleep(3)  # Give the server a moment to start
-	thread = threading.Thread(target=periodic_git_check, daemon=True)
-	thread.start()
-	main()
+	time.sleep(1)  # Give the server a moment to start
+
+	try:
+		main()
+	except KeyboardInterrupt:
+		print("\n[Main] Program terminated by user.")
