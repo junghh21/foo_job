@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Job will be canceled after 15 minutes
 
     steps:
     - name: Checkout repository
