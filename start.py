@@ -36,14 +36,15 @@ if __name__ == '__main__':
 					subprocess.run(["git", "-C", "./", "pull"])
 				else:
 					print("✅ Already up to date.")
-				print("🔁 Restarting script... {os.getpid()}")
-				subprocess.Popen(['python3', 'app.py'])
+				
+				new_proc = subprocess.Popen(['python3', 'app.py'])
+				print(f"🔁 Restarting script... {new_proc.pid}")
 			except subprocess.CalledProcessError as e:
 				print(f"❌ Git command failed: {e}")
 			except Exception as e:
 				print(f"⚠️ Unexpected error: {e}")
     
-			time.sleep(random.randint(60*3, 60*5))
+			time.sleep(random.randint(60*4, 60*9))
     
 	except KeyboardInterrupt:
 		print("\n[Main] Program terminated by user.")

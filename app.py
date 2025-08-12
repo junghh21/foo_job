@@ -84,10 +84,12 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 			#	await response.write(b',')
 
 			if ret != -1:
-				print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
+				#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
+				print(f"...{i}  {new_no:08x}:{new_mask:08x}")
 				json_data = {"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"}
 			else:
-				print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
+				#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
+				print(".")
 				json_data = {"result": "False"}
 			no = new_no+1
 			mask = mask
@@ -117,8 +119,7 @@ app.add_routes([
 ])
 
 submit_q = asyncio.Queue()
-run_q = asyncio.Queue()
-async def foo_runner():
+async def foo_runner(num, run_q):
 	i = -1
 	while True:
 		try:
@@ -131,10 +132,12 @@ async def foo_runner():
 										None, foo1, bin_data, no, mask
 									)
 				if ret != -1:
-					print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
+					#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
+					print(f"...{num}:{i}  {new_no:08x}:{new_mask:08x}")
 					await submit_q.put({"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"})
 				else:
-					print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
+					#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
+					print(".")
 				no = new_no+1
 				mask = mask
 				i+=1
@@ -155,70 +158,73 @@ async def foo_runner():
 		except Exception as e:
 			print(f"Error in foo_runner: {e}")
 
-
-async def websocket_client(ws_url):
-	async with ClientSession() as session:
+async def websocket_client(num, run_q, ws_url):
 		while True:
 			await asyncio.sleep(10)
 			#print("Reconnecting to WebSocket...")
 			try:
-				# Attempt to connect to the WebSocket server
-				ssl_context = ssl.create_default_context()
-				ssl_context.check_hostname = False
-				ssl_context.verify_mode = ssl.CERT_NONE
-				async with session.ws_connect(ws_url, ssl=ssl_context) as ws:
-					print("WebSocket connection established successfully.")
-					timeout_cnt = 0
-					while True:
-						if submit_q.qsize() > 0:
-							item = await submit_q.get()
-							await ws.send_json(item)
-						try:
-							msg = await asyncio.wait_for(ws.receive(), 0.1)
-							timeout_cnt = 0
-						except asyncio.TimeoutError:
-							timeout_cnt += 1
-							if timeout_cnt > 300:
-								print("WebSocket msg timed out. Reconnecting...")
-								await ws.close()
-								break
-							continue
-						if msg.type == WSMsgType.TEXT:
+				async with ClientSession() as session:
+					# Attempt to connect to the WebSocket server
+					ssl_context = ssl.create_default_context()
+					ssl_context.check_hostname = False
+					ssl_context.verify_mode = ssl.CERT_NONE
+					async with session.ws_connect(ws_url, ssl=ssl_context) as ws:
+						print(f"{num}: WebSocket connection established successfully.")
+						timeout_cnt = 0
+						while True:
+							if submit_q.qsize() > 0:
+								item = await submit_q.get()
+								await ws.send_json(item)
 							try:
-								data = json.loads(msg.data)
-								print("Received JSON:", data)
-								if "req" in data:
-									if data['req'] == 'run':
-										bin_data = bytes.fromhex(data['bin'])
-										no = int(data['no'], 16)
-										mask = int(data['mask'], 16)
-										await run_q.put({"bin": bin_data, "no": no, "mask": mask, "path": data['path']})
-									elif data['req'] == 'stop':
-										await run_q.put({"stop": True})
-							except json.JSONDecodeError:
-								print("Received non-JSON message:", msg.data)
-							except Exception as e:
-								print(f"Error processing message: {e}")
-						elif msg.type == WSMsgType.ERROR:
-							print("WebSocket error:", msg)
-						elif msg.type == WSMsgType.CLOSE:
-							print("WebSocket connection closed")
-							break
+								msg = await asyncio.wait_for(ws.receive(), 0.1)
+								timeout_cnt = 0
+							except asyncio.TimeoutError:
+								timeout_cnt += 1
+								if timeout_cnt > 300:
+									print(f"{num}: WebSocket msg timed out. Reconnecting...")
+									await ws.close()
+									break
+								continue
+							if msg.type == WSMsgType.TEXT:
+								try:
+									data = json.loads(msg.data)
+									#print("Received JSON:", data)
+									if "req" in data:
+										if data['req'] == 'run':
+											bin_data = bytes.fromhex(data['bin'])
+											no = int(data['no'], 16)
+											mask = int(data['mask'], 16)
+											await run_q.put({"bin": bin_data, "no": no, "mask": mask, "path": data['path']})
+										elif data['req'] == 'stop':
+											await run_q.put({"stop": True})
+								except json.JSONDecodeError:
+									print("Received non-JSON message:", msg.data)
+								except Exception as e:
+									print(f"Error processing message: {e}")
+							elif msg.type == WSMsgType.ERROR:
+								print("WebSocket error:", msg)
+							elif msg.type == WSMsgType.CLOSE:
+								print(f"{num}: WebSocket connection closed")
+								break
 
 			except (ConnectionRefusedError, asyncio.TimeoutError) as e:
 				print(f"WebSocket connection failed: {e}")
 			except Exception as e:
-				print(f"WebSocket connection error: {e}")
+				print(f"{num}: WebSocket connection error: {e}")
 
 
 async def on_startup(app):
 	with open("brg_url.txt") as f:
 		ws_url = f.readline()
 		#ws_url = 'wss://localhost:3001/ws_s'  # Replace with your WebSocket URL
-	app['tasks'] = [
-			asyncio.create_task(websocket_client(ws_url)),
-			asyncio.create_task(foo_runner()),
-	]
+	cores = os.cpu_count()
+	app['tasks'] = []
+	for i in range(cores):
+		q = asyncio.Queue()
+		runner = asyncio.create_task(foo_runner(i, q))
+		ws = asyncio.create_task(websocket_client(i, q, ws_url))
+		app['tasks'].append(runner)
+		app['tasks'].append(ws)
 
 async def on_cleanup(app):
 	for task in app['tasks']:
