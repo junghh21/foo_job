@@ -25,5 +25,5 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run Python script
-      run: python app.py
+      run: python start.py
 
