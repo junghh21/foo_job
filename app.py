@@ -118,6 +118,8 @@ app.add_routes([
 	web.post('/params2', handle_params),
 ])
 
+from concurrent.futures import ProcessPoolExecutor
+executor = ProcessPoolExecutor()
 submit_q = asyncio.Queue()
 async def foo_runner(num, run_q):
 	i = -1
@@ -128,16 +130,19 @@ async def foo_runner(num, run_q):
 					await asyncio.sleep(.1)
 					continue
 				loop = asyncio.get_running_loop()
+				time_start = time.time()
+				print(f"_{num}")
 				new_bin, new_no, new_mask, ret = await loop.run_in_executor(
-										None, foo1, bin_data, no, mask
+										executor, foo1, bin_data, no, mask
 									)
+				print(f"{num}  ({time.time()-time_start:.2f})")
 				if ret != -1:
 					#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
 					print(f"...{num}:{i}  {new_no:08x}:{new_mask:08x}")
 					await submit_q.put({"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"})
 				else:
 					#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
-					print(".")
+					print(f".{num}")
 				no = new_no+1
 				mask = mask
 				i+=1
