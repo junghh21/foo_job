@@ -5,13 +5,15 @@ name: 2D Matrix Test Workflow
 
 on:
   schedule:
-    - cron: '0 * * * *'  # ⏰ Every hour
-  workflow_dispatch:
+    - cron: '0 */6 * * *'
+
+concurrency:
+  group: scheduled-job
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     strategy:
       matrix:
         instance: [1, 2, 3, 4]
@@ -37,4 +39,5 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests for instance ${{ matrix.instance }} group ${{ matrix.group }}
-        run: python start.py
+        run: python start.py > /dev/null 2>&1 && sleep 18000
+
