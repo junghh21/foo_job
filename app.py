@@ -143,7 +143,8 @@ async def foo_runner(num, run_q):
 					await submit_q.put({"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"})
 				else:
 					#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
-					print(f".{num}  ({time.time()-time_start:.2f})")
+					#print(f".{num}  ({time.time()-time_start:.2f})")
+					pass
 				no = new_no+1
 				mask = mask
 				i+=1
