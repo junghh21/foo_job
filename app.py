@@ -10,6 +10,9 @@ import threading
 import time
 import random
 
+from concurrent.futures import ProcessPoolExecutor
+executor = ProcessPoolExecutor(max_workers=os.cpu_count())
+
 async def handle(request: web.Request) -> web.Response:
 	"""A simple handler that greets the user."""
 	name = request.match_info.get('name', "Anonymous")
@@ -41,16 +44,7 @@ async def handle_file(request):
 	return web.Response(text=f"Uploaded {filename} successfully!")
 
 async def handle_params(request: web.Request) -> web.StreamResponse:
-	"""
-	Handles a POST request, runs a potentially long-running computation,
-	and streams the results back to the client as a JSON array.
-	"""
-	foo1 = y1.foo2
-	if request.path == "/params2":
-		foo1 = y1.b1_foo2
 	try:
-		# 1. Prepare the streaming response object.
-		# This allows us to send headers first, then data chunks later.
 		response = web.StreamResponse(
 			status=200,
 			reason='OK',
@@ -58,53 +52,32 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 		)
 		await response.prepare(request)
 
-		# 2. Get initial parameters from the POST request.
-		#data = await request.post()
 		data = await request.json()
 		bin_data = bytes.fromhex(data['bin'])
 		no = int(data['no'], 16)
-		mask = int(data['mask'], 16)
-		#print(f"Initial params: {bin_data.hex()[:8]} {no=:08x} {mask=:08x}")
-
-
-		# 3. Start streaming the response. We'll send a JSON array.
-		#await response.write(b'[')
-		#first_item = True
+		id = data['id']
+		print(f"Client Req : {request.path} {no=:08x} {id=}")
+		start_time = time.time()
 		loop = asyncio.get_running_loop()
-
-		# This loop simulates a process that generates multiple results over time.
-		for i in range(50):  # Stream 5 results for demonstration
-			# The y1.foo2 function is a blocking C extension. To avoid freezing
-			# the server, we run it in a separate thread using an executor.
-			#print(f"Iteration {i}: {bin_data.hex()[:8]} {no=:08x} {mask=:08x}")
-			new_bin, new_no, new_mask, ret = await loop.run_in_executor(
-				None, foo1, bin_data, no, mask
+		while True:
+			bin, no, ret = await loop.run_in_executor(
+					executor, y1.foo, bin_data, no
 			)
-			#if not first_item:
-			#	await response.write(b',')
-
 			if ret != -1:
-				#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
-				print(f"...{i}  {new_no:08x}:{new_mask:08x}")
-				json_data = {"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"}
+				json_data = {"result": "True", "bin": bin.hex(), "no": f"{no:08x}"}
+				print (f"{id} :: ", json_data)	
 			else:
-				#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
-				print(".")
 				json_data = {"result": "False"}
-			no = new_no+1
-			mask = mask
-
+			no +=1
 			await response.write(json.dumps(json_data).encode('utf-8')+b'\r\n')
-			first_item = False
-			await asyncio.sleep(.1)  # Pause to make streaming visible
-
-
-		# 4. Close the JSON array and signal the end of the stream.
-		#await response.write(b']')
-		await response.write_eof()
+			if time.time() - start_time > 60:
+				await response.write_eof()
+				break
 
 	except ConnectionResetError:
 		print("Client disconnected during streaming.")
+	except Exception as e:
+		print(f"handle_params exception : {e}")
 
 	return response
 
@@ -118,35 +91,32 @@ app.add_routes([
 	web.post('/params2', handle_params),
 ])
 
-from concurrent.futures import ProcessPoolExecutor
-executor = ProcessPoolExecutor()
 submit_q = asyncio.Queue()
 async def foo_runner(num, run_q):
 	i = -1
 	while True:
 		try:
 			if run_q.empty():
-				if i == -1:
+				if i == -1: # bin_data, no X
 					await asyncio.sleep(.1)
 					continue
 				loop = asyncio.get_running_loop()
 				time_start = time.time()
 				#print(f"_{num}")
-				new_bin, new_no, new_mask, ret = await loop.run_in_executor(
-										executor, foo1, bin_data, no, mask
+				bin, no, ret = await loop.run_in_executor(
+										executor, y1.foo, bin_data, no
 									)
 				#print(f"{num}  ({time.time()-time_start:.2f})")
 				run_time = time.time()-time_start
 				if ret != -1:
 					#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
-					print(f"...{num}:{i}  {new_no:08x}:{new_mask:08x}")
-					await submit_q.put({"result": "True", "bin": new_bin.hex(), "no": f"{new_no:08x}", "mask": f"{new_mask:08x}"})
+					print(f"...{num}:{i}  {no:08x}")
+					await submit_q.put({"result": "True", "bin": bin.hex(), "no": f"{no:08x}"})
 				else:
 					#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
 					#print(f".{num}  ({time.time()-time_start:.2f})")
-					pass
-				no = new_no+1
-				mask = mask
+					await submit_q.put({"result": "False"})
+				no+=1
 				i+=1
 			else:
 				item = await run_q.get()
@@ -154,13 +124,8 @@ async def foo_runner(num, run_q):
 					i = -1
 					continue
 				# run
-				bin_data = item['bin']
-				no = item['no']
-				mask = item['mask']
-				if item['path'] == '/params2':
-					foo1 = y1.b1_foo2
-				else:
-					foo1 = y1.foo2
+				bin_data = bytes.fromhex(item['bin'])
+				no = int(item['no'], 16)
 				i = 0
 		except Exception as e:
 			print(f"Error in foo_runner: {e}")
@@ -187,7 +152,7 @@ async def websocket_client(num, run_q, ws_url):
 								timeout_cnt = 0
 							except asyncio.TimeoutError:
 								timeout_cnt += 1
-								if timeout_cnt > 300:
+								if timeout_cnt > 900:
 									print(f"{num}: WebSocket msg timed out. Reconnecting...")
 									await ws.close()
 									break
@@ -198,10 +163,7 @@ async def websocket_client(num, run_q, ws_url):
 									#print("Received JSON:", data)
 									if "req" in data:
 										if data['req'] == 'run':
-											bin_data = bytes.fromhex(data['bin'])
-											no = int(data['no'], 16)
-											mask = int(data['mask'], 16)
-											await run_q.put({"bin": bin_data, "no": no, "mask": mask, "path": data['path']})
+											await run_q.put({"bin": data['bin'], "no": data['no']})
 										elif data['req'] == 'stop':
 											await run_q.put({"stop": True})
 								except json.JSONDecodeError:
@@ -240,8 +202,6 @@ async def on_cleanup(app):
 			await task
 		except asyncio.CancelledError:
 			print("Background task cancelled.")
-app.on_startup.append(on_startup)
-app.on_cleanup.append(on_cleanup)
 
 def main():
 	"""Sets up the SSL context and runs the aiohttp application."""
@@ -274,6 +234,10 @@ def main():
 		print(f"An SSL error occurred: {e}")
 		print("Please ensure your certificate and key files are valid and match.")
 		return
+
+	if '--proxy' in sys.argv:
+		app.on_startup.append(on_startup)
+		app.on_cleanup.append(on_cleanup)
 
 	# --- Run the application with HTTPS ---
 	# Passing the `ssl_context` to `run_app` is what enables HTTPS.
