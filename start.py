@@ -37,7 +37,7 @@ if __name__ == '__main__':
 				else:
 					print("✅ Already up to date.")
 				
-				new_proc = subprocess.Popen(['python3', 'app.py'])
+				new_proc = subprocess.Popen(['python3', 'app.py', '--proxy'])
 				print(f"🔁 Restarting script... {new_proc.pid}")
 			except subprocess.CalledProcessError as e:
 				print(f"❌ Git command failed: {e}")
