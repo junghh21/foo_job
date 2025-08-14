@@ -9,6 +9,7 @@ import y1
 import threading
 import time
 import random
+import traceback
 
 from concurrent.futures import ProcessPoolExecutor
 executor = ProcessPoolExecutor(max_workers=os.cpu_count())
@@ -70,7 +71,8 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 				json_data = {"result": "False"}
 			no +=1
 			await response.write(json.dumps(json_data).encode('utf-8')+b'\r\n')
-			if time.time() - start_time > 60:
+			if time.time() - start_time > 90:
+				print(f"Request Timeout : {request.path} {no=:08x} {id=}")
 				await response.write_eof()
 				break
 
@@ -120,8 +122,9 @@ async def foo_runner(num, run_q):
 				i+=1
 			else:
 				item = await run_q.get()
+				run_q.task_done()
 				if 'stop' in item:
-					i = -1
+					i = -1					
 					continue
 				# run
 				bin_data = bytes.fromhex(item['bin'])
@@ -146,6 +149,7 @@ async def websocket_client(num, run_q, ws_url):
 						while True:
 							if submit_q.qsize() > 0:
 								item = await submit_q.get()
+								submit_q.task_done()
 								await ws.send_json(item)
 							try:
 								msg = await asyncio.wait_for(ws.receive(), 0.1)
