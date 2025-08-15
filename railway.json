@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "gunicorn app:app --bind 0.0.0.0:10000 --worker-class aiohttp.GunicornWebWorker"
+    "startCommand": "python3 start.py"
   }
 }
