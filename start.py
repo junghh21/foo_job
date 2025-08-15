@@ -13,7 +13,17 @@ if __name__ == '__main__':
 		while True:
 			try:
 				print("Kill apps.")
-				subprocess.run(["pkill", "-f", "python3 app.py --proxy"])
+				result = subprocess.run(
+						["pgrep", "-f", "python3 app.py"],
+						stdout=subprocess.PIPE,
+						stderr=subprocess.PIPE,
+						text=True
+				)
+				pids = result.stdout.strip().split()
+				print("Matching PIDs:", pids)
+				for pid in pids:
+					subprocess.run(["kill", "-9", f"{pid}"])
+					
 				time.sleep(2)
 				result = subprocess.run(
 								"ps aux | grep 'python3 app.py' | grep -v grep | wc -l",
