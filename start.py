@@ -13,7 +13,7 @@ if __name__ == '__main__':
 		while True:
 			try:
 				print("Kill apps.")
-				subprocess.run(["pkill", "-f", "app.py"])
+				subprocess.run(["pkill", "-9", "python3"])
 				time.sleep(2)
 				result = subprocess.run(
 								"ps aux | grep 'python3 app.py' | grep -v grep | wc -l",
