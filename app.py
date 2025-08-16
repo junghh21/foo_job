@@ -5,6 +5,7 @@ from aiohttp import web, ClientSession, WSMsgType
 import os
 import sys
 import subprocess
+import psutil
 import y1
 import threading
 import time
@@ -88,36 +89,50 @@ app = web.Application()
 app.add_routes([
 	web.get('/', handle),
 	web.get('/info', handle_info),
- 	web.post('/file', handle_file),
+	web.post('/file', handle_file),
 	web.post('/params', handle_params),
 	web.post('/params2', handle_params),
 ])
 
-submit_q = asyncio.Queue()
+def foo_func(bin_data, no):	
+	process = psutil.Process(os.getpid())
+	process.cpu_percent(interval=None)
+	#process.cpu_affinity([0, 2, 4, 6])
+	time_start = time.time()
+	bin, no, ret = y1.foo(bin_data, no) 
+	run_time = time.time()-time_start
+	cpu_usage = process.cpu_percent(interval=None)
+	return bin, no, ret, run_time, cpu_usage
+
+ws_q = asyncio.Queue()
 async def foo_runner(num, run_q):
 	i = -1
+	last_noti_time = time.time()
+	avg_run_time = avg_cpu_usage = 0
 	while True:
 		try:
 			if run_q.empty():
 				if i == -1: # bin_data, no X
 					await asyncio.sleep(.1)
 					continue
+				if time.time() - run_start_time > 90:
+					print(f"{num}: Run Timeout")
+					i = -1					
+					continue
 				loop = asyncio.get_running_loop()
-				time_start = time.time()
-				#print(f"_{num}")
-				bin, no, ret = await loop.run_in_executor(
-										executor, y1.foo, bin_data, no
-									)
-				#print(f"{num}  ({time.time()-time_start:.2f})")
-				run_time = time.time()-time_start
+				bin, no, ret, run_time, cpu_usage = await loop.run_in_executor(
+							executor, foo_func, bin_data, no
+				)
+				avg_run_time += (run_time-avg_run_time)/3
+				avg_cpu_usage += (cpu_usage-avg_cpu_usage)/3
 				if ret != -1:
 					#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
 					print(f"...{num}:{i}  {no:08x}")
-					await submit_q.put({"result": "True", "bin": bin.hex(), "no": f"{no:08x}"})
+					await ws_q.put({"result": "True", "bin": bin.hex(), "no": f"{no:08x}"})
 				else:
 					#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
 					#print(f".{num}  ({time.time()-time_start:.2f})")
-					await submit_q.put({"result": "False"})
+					await ws_q.put({"result": "False"})
 				no+=1
 				i+=1
 			else:
@@ -130,12 +145,18 @@ async def foo_runner(num, run_q):
 				bin_data = bytes.fromhex(item['bin'])
 				no = int(item['no'], 16)
 				i = 0
+				run_start_time = time.time()
+			
+			if time.time() - last_noti_time > 10:
+				await ws_q.put({"type": "noti", 
+												"run_time": f"{avg_run_time:.2f}",
+												"cpu_usage": f"{avg_cpu_usage:.2f}"})
+				last_noti_time = time.time()
 		except Exception as e:
 			print(f"Error in foo_runner: {e}")
 
 async def websocket_client(num, run_q, ws_url):
-		while True:
-			await asyncio.sleep(10)
+		while True:			
 			#print("Reconnecting to WebSocket...")
 			try:
 				async with ClientSession() as session:
@@ -145,52 +166,58 @@ async def websocket_client(num, run_q, ws_url):
 					ssl_context.verify_mode = ssl.CERT_NONE
 					async with session.ws_connect(ws_url, ssl=ssl_context) as ws:
 						print(f"{num}: WebSocket connection established successfully.")
-						timeout_cnt = 0
+						last_msg_time = last_noti_time = time.time()
 						while True:
-							if submit_q.qsize() > 0:
-								item = await submit_q.get()
-								submit_q.task_done()
+							if ws_q.qsize() > 0:
+								item = await ws_q.get()
+								ws_q.task_done()
 								await ws.send_json(item)
 							try:
 								msg = await asyncio.wait_for(ws.receive(), 0.1)
-								timeout_cnt = 0
-							except asyncio.TimeoutError:
-								timeout_cnt += 1
-								if timeout_cnt > 900:
-									print(f"{num}: WebSocket msg timed out. Reconnecting...")
-									await ws.close()
+								last_msg_time = time.time()
+								if msg.type == WSMsgType.TEXT:
+									try:
+										data = json.loads(msg.data)
+										#print("Received JSON:", data)
+										if "req" in data:
+											if data['req'] == 'run':
+												await run_q.put({"bin": data['bin'], "no": data['no']})
+											elif data['req'] == 'stop':
+												await run_q.put({"stop": True})
+									except json.JSONDecodeError:
+										print("Received non-JSON message:", msg.data)
+									except Exception as e:
+										print(f"Error processing message: {e}")
+								elif msg.type == WSMsgType.ERROR:
+									print(f"⚠️ {num}: WebSocket error: {ws.exception()}")
+									await run_q.put({"stop": True})
+									await asyncio.sleep(1)		
 									break
-								continue
-							if msg.type == WSMsgType.TEXT:
-								try:
-									data = json.loads(msg.data)
-									#print("Received JSON:", data)
-									if "req" in data:
-										if data['req'] == 'run':
-											await run_q.put({"bin": data['bin'], "no": data['no']})
-										elif data['req'] == 'stop':
-											await run_q.put({"stop": True})
-								except json.JSONDecodeError:
-									print("Received non-JSON message:", msg.data)
-								except Exception as e:
-									print(f"Error processing message: {e}")
-							elif msg.type == WSMsgType.ERROR:
-								print("WebSocket error:", msg)
-							elif msg.type == WSMsgType.CLOSE:
-								print(f"{num}: WebSocket connection closed")
-								break
-
+								elif msg.type == WSMsgType.CLOSE:
+									print(f"🔌 {num}: WebSocket connection closed by client")
+									await run_q.put({"stop": True})
+									await asyncio.sleep(1)		
+									break
+							except asyncio.TimeoutError:	# ws.receive(), 0.1
+								if time.time() - last_msg_time > 90:
+									print(f"{num}: WebSocket msg timed out. Reconnecting...")
+									await run_q.put({"stop": True})
+									await asyncio.sleep(1)		
+									break
+								else:
+									continue
 			except (ConnectionRefusedError, asyncio.TimeoutError) as e:
 				print(f"WebSocket connection failed: {e}")
+				await asyncio.sleep(10)
 			except Exception as e:
 				print(f"{num}: WebSocket connection error: {e}")
-
+				await asyncio.sleep(10)
 
 async def on_startup(app):
 	with open("brg_url.txt") as f:
 		ws_url = f.readline()
-		#ws_url = 'wss://localhost:3001/ws_s'  # Replace with your WebSocket URL
-	cores = os.cpu_count()
+	cores = psutil.cpu_count(logical=False)
+	#cores = 4
 	app['tasks'] = []
 	for i in range(cores):
 		q = asyncio.Queue()
