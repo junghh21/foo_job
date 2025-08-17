@@ -102,13 +102,15 @@ def foo_func(bin_data, no):
 	bin, no, ret = y1.foo(bin_data, no) 
 	run_time = time.time()-time_start
 	cpu_usage = process.cpu_percent(interval=None)
-	return bin, no, ret, run_time, cpu_usage
+	cpu_times = process.cpu_times()
+	total_cpu_time = cpu_times.user + cpu_times.system
+	return bin, no, ret, run_time, cpu_usage, total_cpu_time
 
 ws_q = asyncio.Queue()
 async def foo_runner(num, run_q):
 	i = -1
 	last_noti_time = time.time()
-	avg_run_time = avg_cpu_usage = 0
+	avg_run_time = avg_cpu_usage = total_cpu_time = 0
 	while True:
 		try:
 			if run_q.empty():
@@ -120,7 +122,7 @@ async def foo_runner(num, run_q):
 					i = -1					
 					continue
 				loop = asyncio.get_running_loop()
-				bin, no, ret, run_time, cpu_usage = await loop.run_in_executor(
+				bin, no, ret, run_time, cpu_usage, total_cpu_time = await loop.run_in_executor(
 							executor, foo_func, bin_data, no
 				)
 				avg_run_time += (run_time-avg_run_time)/3
@@ -147,10 +149,12 @@ async def foo_runner(num, run_q):
 				i = 0
 				run_start_time = time.time()
 			
-			if time.time() - last_noti_time > 10:
+			if time.time() - last_noti_time > 10:    
 				await ws_q.put({"type": "noti", 
 												"run_time": f"{avg_run_time:.2f}",
-												"cpu_usage": f"{avg_cpu_usage:.2f}"})
+												"cpu_usage": f"{avg_cpu_usage:.2f}",
+												"cpu_time": f"{total_cpu_time:.2f}",
+												"uptime": os.popen("uptime -p").read().strip()})
 				last_noti_time = time.time()
 		except Exception as e:
 			print(f"Error in foo_runner: {e}")
