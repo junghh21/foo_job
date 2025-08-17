@@ -13,7 +13,7 @@ import random
 import traceback
 
 from concurrent.futures import ProcessPoolExecutor
-executor = ProcessPoolExecutor(max_workers=os.cpu_count())
+executor = ProcessPoolExecutor()
 
 async def handle(request: web.Request) -> web.Response:
 	"""A simple handler that greets the user."""
