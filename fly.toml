@@ -1,25 +1,23 @@
-# fly.toml app configuration file generated for foo-job-blue-sea-6594 on 2025-08-09T20:34:09+09:00
+# fly.toml app configuration file generated for foo-job on 2025-08-19T05:54:15Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'foo-job-blue-sea-6594'
-primary_region = 'sin'
+app = 'foo-job'
+primary_region = 'phx'
 
 [build]
 
 [http_service]
   internal_port = 10000
   force_https = true
-  auto_stop_machines = 'off'
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-
-[processes]
-  app = "your web server command"
-  worker = "python worker.py" 
+  processes = ['app']
 
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
-  cpus = 1
+  cpus = 2
+  memory_mb = 4096
