@@ -9,6 +9,10 @@ primary_region = 'phx'
 [build]
   dockerfile = 'Dockerfile'
 
+[processes]
+web = "gunicorn app:app"
+worker = "python start.py"
+
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
