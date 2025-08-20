@@ -1,19 +1,22 @@
-# fly.toml app configuration file generated for foo-job-blue-sea-6594 on 2025-08-09T20:34:09+09:00
+# fly.toml app configuration file generated for tertwt-wild-mountain-658 on 2025-08-19T17:11:24+09:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'foo-job-blue-sea-6594'
+app = 'tertwt-wild-mountain-658'
 primary_region = 'phx'
 
 [build]
-  dockerfile = 'Dockerfile'
 
-[processes]
-web = "gunicorn app:app"
-worker = "python start.py"
+[http_service]
+  internal_port = 10000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
-  cpus = 2
+  cpus = 1
