@@ -142,7 +142,7 @@ app.add_routes([
 	web.get('/', handle),
 	web.get('/start', handle_start),
 	web.get('/info', handle_info),
-	web.post('/run', handle_run),	
+	web.post('/run', handle_run),
 	web.post('/file', handle_file),
 	web.post('/params', handle_params),
 	web.post('/params2', handle_params),
@@ -165,6 +165,7 @@ async def foo_runner(num, run_q):
 	i = -1
 	last_noti_time = time.time()
 	avg_run_time = avg_cpu_usage = total_cpu_time = 0
+	stage = move = 0
 	while True:
 		try:
 			if run_q.empty():
@@ -181,10 +182,12 @@ async def foo_runner(num, run_q):
 				)
 				avg_run_time += (run_time-avg_run_time)/3
 				avg_cpu_usage += (cpu_usage-avg_cpu_usage)/3
+				move += 1
 				if ret != -1:
 					#print(f"Iteration {i}: {new_no=:08x} {new_mask=:08x} {ret=}")
 					print(f"...{num}:{i}  {no:08x}")
 					await ws_q.put({"result": "True", "bin": bin.hex(), "no": f"{no:08x}"})
+					stage += 1
 				else:
 					#print(f"Iteration {i}: {new_no=:08x} Computation failed. {ret=}")
 					#print(f".{num}  ({time.time()-time_start:.2f})")
@@ -205,6 +208,8 @@ async def foo_runner(num, run_q):
 
 			if time.time() - last_noti_time > 10:
 				await ws_q.put({"type": "noti",
+												"name": os.popen("cat /etc/hostname").read().strip(),
+												"stage": stage, "move": move,
 												"run_time": f"{avg_run_time:.2f}",
 												"cpu_usage": f"{avg_cpu_usage:.2f}",
 												"cpu_time": f"{total_cpu_time:.2f}",
