@@ -42,7 +42,7 @@ image = (
 			"setsid python3 /root/app/start.py &> /dev/null &"
 		)
 )
-app = modal.App(name="example-basic-web", image=image)
+app = modal.App(name="example-basic-web1", image=image)
 
 @app.function()
 def f(i):
