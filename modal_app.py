@@ -51,6 +51,8 @@ def f(i):
 
 @app.local_entrypoint()
 def main():
-	for i in range(100):
-		f.remote(i)
-		time.sleep(random.randint(7, 14))
+	while True:
+		for i in range(200):
+			print(f.remote(i))
+			time.sleep(random.randint(7, 14))
+		time.sleep(900)
