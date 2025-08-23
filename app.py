@@ -272,6 +272,11 @@ async def websocket_client(num, run_q, ws_url):
 			except (ConnectionRefusedError, asyncio.TimeoutError) as e:
 				print(f"WebSocket connection failed: {e}")
 				await asyncio.sleep(10)
+			except asyncio.CancelledError:
+				print("WebSocket task cancelled. Cleaning up...")
+				# Connection will auto-close due to `async with`
+				ws.close()
+				raise
 			except Exception as e:
 				print(f"{num}: WebSocket connection error: {e}")
 				await asyncio.sleep(10)
