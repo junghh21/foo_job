@@ -275,7 +275,7 @@ async def websocket_client(num, run_q, ws_url):
 			except asyncio.CancelledError:
 				print("WebSocket task cancelled. Cleaning up...")
 				# Connection will auto-close due to `async with`
-				ws.close()
+				await ws.close()
 				raise
 			except Exception as e:
 				print(f"{num}: WebSocket connection error: {e}")
