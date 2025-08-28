@@ -208,7 +208,7 @@ async def foo_runner(num, run_q):
 
 			if time.time() - last_noti_time > 10:
 				await ws_q.put({"type": "noti",
-												"name": os.popen("cat /etc/hostname").read().strip() if os.path.exists("/etc/hostname") else "N/A"
+												"name": os.popen("cat /etc/hostname").read().strip() if os.path.exists("/etc/hostname") else "N/A",
 												"stage": stage, "move": move,
 												"run_time": f"{avg_run_time:.2f}",
 												"cpu_usage": f"{avg_cpu_usage:.2f}",
