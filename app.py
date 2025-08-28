@@ -208,12 +208,12 @@ async def foo_runner(num, run_q):
 
 			if time.time() - last_noti_time > 10:
 				await ws_q.put({"type": "noti",
-												"name": os.popen("cat /etc/hostname").read().strip(),
+												"name": os.popen("cat /etc/hostname").read().strip() if os.path.exists("/etc/hostname") else "N/A"
 												"stage": stage, "move": move,
 												"run_time": f"{avg_run_time:.2f}",
 												"cpu_usage": f"{avg_cpu_usage:.2f}",
 												"cpu_time": f"{total_cpu_time:.2f}",
-												"uptime": os.popen("uptime -p").read().strip()})
+												"uptime": os.popen("uptime").read().strip()})
 				last_noti_time = time.time()
 		except Exception as e:
 			print(f"Error in foo_runner: {e}")
