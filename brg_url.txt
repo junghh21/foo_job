@@ -1,1 +1,2 @@
-wss://m1-foo-b3q5.onrender.com
+wss://m1-foo-b3q5.onrender.com/ws_s
+wss://localhost:3001/ws_s
