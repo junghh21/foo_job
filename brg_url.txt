@@ -1,1 +1,1 @@
-wss://m2-foo.onrender.com/ws_s
+wss://m1-foo.onrender.com/ws_s
