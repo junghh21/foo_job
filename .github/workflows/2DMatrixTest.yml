@@ -40,4 +40,9 @@ jobs:
 
       - name: Run tests for instance ${{ matrix.instance }} group ${{ matrix.group }}
         run: python start.py > /dev/null 2>&1 && sleep 18000
+        
+      - name: Force commit
+        run: |
+          git commit --allow-empty -m "Force update repository"
+          git push
 
